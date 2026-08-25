@@ -125,7 +125,8 @@ def driver_view(ref: str, requester: str):
         f'Where are you right now?</div>'
         f'<div style="color:#5A6B7A;font-size:15px">{requester} needs your exact stop '
         f'so nobody has to spell out a postcode. Your phone will ask permission — '
-        f'tap Allow.</div></div>',
+        f'tap <b>Allow</b> and your location sends on its own. Nothing else to press.'
+        f'</div></div>',
         unsafe_allow_html=True,
     )
 
@@ -170,15 +171,10 @@ def driver_view(ref: str, requester: str):
             "cover, step outside and reload for a proper fix."
         )
 
-    st.link_button("Check it on a map",
-                   f"https://www.google.com/maps?q={lat},{lon}",
-                   use_container_width=True)
-
-    note = st.text_input("Add a detail (optional)",
-                         placeholder="e.g. Gate 3, rear yard, buzzer B",
-                         max_chars=80)
-
-    if st.button("Send this location", type="primary", use_container_width=True):
+    # Auto-send: the moment we have a fix, log it. No button.
+    # Guard against double-logging across Streamlit reruns.
+    fix_id = f"{round(lat, 6)},{round(lon, 6)}"
+    if st.session_state.get("logged_fix") != fix_id:
         record = {
             "ref": ref,
             "requester": requester,
@@ -186,10 +182,11 @@ def driver_view(ref: str, requester: str):
             "longitude": round(lon, 6),
             "accuracy_m": acc,
             "address": address,
-            "note": note.strip() or None,
+            "note": None,
             "received_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }
         save(record)
+        st.session_state["logged_fix"] = fix_id
         st.session_state["saved"] = record
         st.rerun()
 
@@ -205,7 +202,14 @@ def show_result():
         f'</div>',
         unsafe_allow_html=True,
     )
-    st.caption("You can close this page. It will not report your position again.")
+    st.link_button("Check it on a map",
+                   f"https://www.google.com/maps?q={r['latitude']},{r['longitude']}",
+                   use_container_width=True)
+    st.caption(
+        "You can close this page. If the address above is wrong — reverse "
+        "lookups sometimes land on the next building — reload and it will "
+        "capture a fresh fix."
+    )
 
 
 # ----------------------------------------------------------------------
